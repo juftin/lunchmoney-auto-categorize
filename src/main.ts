@@ -649,7 +649,7 @@ function logTransactionDetails(t: LMTransaction): string {
 
 function formatTransactionCard(t: LMTransaction): string {
   const plaidMeta = parsePlaidMetadata(t.plaid_metadata);
-  const merchant = plaidMeta?.merchant_name || plaidMeta?.name || t.payee || "Unknown";
+  const merchant = t.payee || plaidMeta?.merchant_name || plaidMeta?.name || "Unknown";
   const pfcPrimary = plaidMeta?.personal_finance_category?.primary;
   const pfcDetailed = plaidMeta?.personal_finance_category?.detailed;
   const _pfc =
