@@ -6,4 +6,4 @@ so you can review and confirm them.
 
 API Tokens stay securely in your browser LocalStorage.
 
-## [juftin.com/lunchmoney-auto-categorize](https://juftin.com/lunchmoney-auto-categorize)
+## [lunchmoney-auto-categorize.juftin.dev](https://lunchmoney-auto-categorize.juftin.dev)
