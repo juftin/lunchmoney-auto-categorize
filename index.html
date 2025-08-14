@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>lunchmoney-auto-categorize</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" />
+    <style>
+      body {
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial;
+        margin: 2rem;
+        background: var(--color-bg-primary);
+        color: var(--color-text-primary);
+      }
+      .card {
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 1.25rem 1.5rem;
+        border: 1px solid var(--color-border-primary);
+        border-radius: 0.75rem;
+        background: var(--color-bg-secondary);
+        box-shadow: var(--shadow-lg);
+        position: relative;
+      }
+
+      /* Theme tokens - GitHub/VS Code inspired */
+      :root {
+        /* Light theme - high contrast, readable */
+        --color-bg-primary: #ffffff;
+        --color-bg-secondary: #f6f8fa;
+        --color-bg-tertiary: #f1f3f4;
+        --color-border-primary: #d0d7de;
+        --color-border-secondary: #d1d9e0;
+        --color-border-hover: #8c959f;
+        --color-border-focus: #0969da;
+        --color-text-primary: #24292f;
+        --color-text-secondary: #656d76;
+        --color-text-tertiary: #8c959f;
+        --color-accent-primary: #0969da;
+        --color-accent-hover: #0550ae;
+        --color-success: #1a7f37;
+        --color-warning: #9a6700;
+        --color-error: #d1242f;
+        --color-success-bg: #dafbe1;
+        --color-warning-bg: #fff8c5;
+        --color-error-bg: #ffebe9;
+
+        /* Shadows */
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0 3px 6px rgba(0, 0, 0, 0.07);
+        --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.08);
+        --shadow-xl: 0 16px 70px rgba(0, 0, 0, 0.12);
+
+        /* Input specific */
+        --input-bg: var(--color-bg-primary);
+        --input-bd: var(--color-border-secondary);
+        --input-bd-hover: var(--color-border-hover);
+        --input-bd-focus: var(--color-border-focus);
+        --input-ring: rgba(9, 105, 218, 0.12);
+        --input-radius: 6px;
+        --input-py: 0.65rem;
+        --input-px: 0.8rem;
+      }
+
+      /* Dark theme - GitHub dark inspired */
+      [data-theme="dark"] {
+        --color-bg-primary: #0d1117;
+        --color-bg-secondary: #161b22;
+        --color-bg-tertiary: #21262d;
+        --color-border-primary: #30363d;
+        --color-border-secondary: #424a53;
+        --color-border-hover: #6e7681;
+        --color-text-primary: #e6edf3;
+        --color-text-secondary: #7d8590;
+        --color-text-tertiary: #6e7681;
+        --color-success: #3fb950;
+        --color-warning: #d29922;
+        --color-error: #f85149;
+        --color-success-bg: #0d2818;
+        --color-warning-bg: #341a00;
+        --color-error-bg: #31111d;
+
+        --input-ring: rgba(9, 105, 218, 0.2);
+      }
+
+      /* System theme - uses CSS media query */
+      @media (prefers-color-scheme: dark) {
+        :root[data-theme="system"] {
+          --color-bg-primary: #0d1117;
+          --color-bg-secondary: #161b22;
+          --color-bg-tertiary: #21262d;
+          --color-border-primary: #30363d;
+          --color-border-secondary: #424a53;
+          --color-border-hover: #6e7681;
+          --color-text-primary: #e6edf3;
+          --color-text-secondary: #7d8590;
+          --color-text-tertiary: #6e7681;
+          --color-success: #3fb950;
+          --color-warning: #d29922;
+          --color-error: #f85149;
+          --color-success-bg: #0d2818;
+          --color-warning-bg: #341a00;
+          --color-error-bg: #31111d;
+
+          --input-ring: rgba(9, 105, 218, 0.2);
+        }
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+        justify-content: space-between;
+      }
+
+      /* Theme toggle button */
+      .theme-toggle {
+        background: var(--color-bg-tertiary);
+        border: 1px solid var(--color-border-primary);
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        cursor: pointer;
+        font-size: 1.2rem;
+        width: 2.5rem;
+        height: 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+      }
+
+      .theme-toggle:hover {
+        background: var(--color-border-primary);
+        border-color: var(--color-border-hover);
+      }
+
+      .brand-content {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .brand img {
+        width: 36px;
+        height: 36px;
+        object-fit: contain;
+      }
+      .brand h1 {
+        font-size: 1.4rem;
+        margin: 0;
+      }
+      label {
+        display: block;
+        margin: 0.25rem 0 0.25rem;
+        font-weight: 600;
+      }
+      /* Updated: inputs/selects spacing and pleasant focus */
+      input,
+      select {
+        width: 100%;
+        padding: var(--input-py) var(--input-px);
+        border: 1px solid var(--input-bd);
+        border-radius: var(--input-radius);
+        background: var(--input-bg);
+        color: var(--color-text-primary);
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02) inset;
+        transition:
+          border-color 0.15s ease,
+          box-shadow 0.15s ease,
+          background 0.15s ease;
+        box-sizing: border-box; /* ensure inputs don't overflow columns */
+      }
+      input:hover,
+      select:hover {
+        border-color: var(--input-bd-hover);
+      }
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--input-bd-focus);
+        box-shadow: 0 0 0 4px var(--input-ring);
+      }
+      input::placeholder {
+        color: var(--color-text-tertiary);
+      }
+
+      /* Date input calendar icons */
+      input[type="date"] {
+        color-scheme: light;
+      }
+
+      [data-theme="dark"] input[type="date"] {
+        color-scheme: dark;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root[data-theme="system"] input[type="date"] {
+          color-scheme: dark;
+        }
+      }
+
+      /* Force calendar icon visibility */
+      input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: 1 !important;
+        width: 16px;
+        height: 16px;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd' /%3e%3c/svg%3e");
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        color: var(--color-text-secondary);
+      }
+
+      input[type="date"]::-webkit-calendar-picker-indicator:hover {
+        background-color: var(--color-bg-tertiary);
+        border-radius: 3px;
+      }
+
+      [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='white'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd' /%3e%3c/svg%3e");
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root[data-theme="system"] input[type="date"]::-webkit-calendar-picker-indicator {
+          background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='white'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd' /%3e%3c/svg%3e");
+        }
+      }
+
+      button {
+        margin-top: 1rem;
+        padding: 0.6rem 3rem;
+        border: 1px solid var(--color-accent-primary);
+        background: var(--color-accent-primary);
+        color: #ffffff;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 1rem;
+        transition: background-color 0.2s ease;
+        text-align: center;
+      }
+
+      /* Make the main Load & Categorize button extra wide */
+      #runBtn {
+        padding: 0.6rem 5rem;
+        font-size: 1rem;
+        flex: 1;
+        max-width: 70%;
+      }
+
+      /* Ensure Cancel button has same font size */
+      #cancelBtn {
+        font-size: 1rem;
+      }
+
+      /* Desktop button layout */
+      .button-row {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        margin-top: 1rem;
+      }
+      button:hover {
+        background: var(--color-accent-hover);
+        border-color: var(--color-accent-hover);
+      }
+      button[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .muted {
+        color: var(--color-text-secondary);
+        font-size: 0.92rem;
+      }
+
+      /* Updated: roomier row spacing and tidy field stacks */
+      .row {
+        display: flex;
+        gap: 1.25rem;
+        margin-top: 1rem;
+        margin-bottom: 0.6rem;
+        flex-wrap: wrap;
+      }
+      .row > div {
+        flex: 1 1 320px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 300px;
+      }
+
+      .log {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: var(--color-bg-tertiary);
+        border: 1px solid var(--color-border-primary);
+        border-radius: 0.5rem;
+        max-height: 360px;
+        overflow: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.9rem;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .progress {
+        height: 10px;
+        background: var(--color-border-primary);
+        border-radius: 9999px;
+        overflow: hidden;
+        margin-top: 0.5rem;
+      }
+      .bar {
+        height: 100%;
+        width: 0%;
+        background: var(--color-accent-primary);
+        transition: width 0.2s ease;
+      }
+      .pill {
+        display: inline-block;
+        padding: 0.15rem 0.5rem;
+        border-radius: 9999px;
+        background: var(--color-bg-tertiary);
+        color: var(--color-accent-primary);
+        font-size: 0.8rem;
+        border: 1px solid var(--color-border-primary);
+      }
+      .ok {
+        color: var(--color-success);
+      }
+      .warn {
+        color: var(--color-warning);
+      }
+      .err {
+        color: var(--color-error);
+      }
+
+      /* Modal */
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .modal.show {
+        display: flex;
+      }
+      .dialog {
+        background: var(--color-bg-secondary);
+        border: 1px solid var(--color-border-primary);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        width: 640px;
+        max-width: 95vw;
+        box-shadow: var(--shadow-xl);
+        color: var(--color-text-primary);
+      }
+      .dialog h2 {
+        margin: 0 0 0.5rem 0;
+      }
+      .dialog .actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+      }
+      .dialog .actions button {
+        text-align: center;
+      }
+      .ghost {
+        background: var(--color-bg-secondary);
+        color: var(--color-text-primary);
+        border: 1px solid var(--color-border-primary);
+        text-align: center;
+      }
+      .ghost:hover {
+        background: var(--color-bg-tertiary);
+        border-color: var(--color-border-hover);
+      }
+
+      /* Success button (Save) */
+      #saveBtn {
+        background: var(--color-success);
+        border-color: var(--color-success);
+        color: #ffffff !important;
+      }
+      #saveBtn:hover {
+        background: #2f855a;
+        border-color: #2f855a;
+        color: #ffffff !important;
+      }
+
+      /* Warning/Skip button */
+      #skipBtn {
+        background: var(--color-warning);
+        border-color: var(--color-warning);
+        color: #ffffff !important;
+      }
+      #skipBtn:hover {
+        background: #c05621;
+        border-color: #c05621;
+        color: #ffffff !important;
+      }
+
+      /* Ensure all buttons have white text */
+      button:not(.ghost) {
+        color: #ffffff !important;
+      }
+
+      /* Lighten button text in dark mode for better readability */
+      [data-theme="dark"] button:not(.ghost) {
+        color: #f7fafc !important;
+      }
+
+      /* Dark mode text readability improvements */
+      [data-theme="dark"] .muted {
+        color: #cbd5e0 !important;
+      }
+
+      [data-theme="dark"] .suggBody .name {
+        color: var(--color-text-primary) !important;
+      }
+
+      [data-theme="dark"] .just {
+        color: #a0aec0 !important;
+      }
+
+      [data-theme="dark"] .info-box {
+        color: #cbd5e0 !important;
+      }
+
+      /* Dark mode transaction card improvements */
+      [data-theme="dark"] .tx-date {
+        color: var(--color-text-primary) !important;
+      }
+
+      [data-theme="dark"] .tx-detail-label {
+        color: var(--color-text-primary) !important;
+      }
+
+      [data-theme="dark"] .tx-detail-value {
+        color: var(--color-text-primary) !important;
+      }
+
+      [data-theme="dark"] .tx-notes-text {
+        color: var(--color-text-primary) !important;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root[data-theme="system"] button:not(.ghost) {
+          color: #f7fafc !important;
+        }
+
+        :root[data-theme="system"] .muted {
+          color: #cbd5e0 !important;
+        }
+
+        :root[data-theme="system"] .suggBody .name {
+          color: var(--color-text-primary) !important;
+        }
+
+        :root[data-theme="system"] .just {
+          color: #a0aec0 !important;
+        }
+
+        :root[data-theme="system"] .info-box {
+          color: #cbd5e0 !important;
+        }
+
+        /* System theme transaction card improvements */
+        :root[data-theme="system"] .tx-date {
+          color: var(--color-text-primary) !important;
+        }
+
+        :root[data-theme="system"] .tx-detail-label {
+          color: var(--color-text-primary) !important;
+        }
+
+        :root[data-theme="system"] .tx-detail-value {
+          color: var(--color-text-primary) !important;
+        }
+
+        :root[data-theme="system"] .tx-notes-text {
+          color: var(--color-text-primary) !important;
+        }
+      }
+
+      /* Suggestions */
+      .sugg {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        margin: 0.3rem 0;
+        border: 1px solid var(--color-border-primary);
+        border-radius: 0.5rem;
+        background: var(--color-bg-tertiary);
+        cursor: pointer;
+        text-align: left;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .sugg:hover {
+        background: var(--color-border-primary);
+        border-color: var(--color-border-hover);
+      }
+      .suggIcon {
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+        margin-top: 2px;
+        flex: 0 0 20px;
+      }
+      .suggBody {
+        display: flex;
+        flex-direction: column;
+      }
+      .suggBody .name {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      /* Confidence badge */
+      .conf {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.05rem 0.4rem;
+        border-radius: 9999px;
+        border: 1px solid transparent;
+        line-height: 1.1;
+      }
+      .conf.high {
+        background: var(--color-success-bg);
+        color: var(--color-success);
+        border-color: var(--color-success);
+      } /* >= 80% */
+      .conf.med {
+        background: var(--color-warning-bg);
+        color: var(--color-warning);
+        border-color: var(--color-warning);
+      } /* 50–79% */
+      .conf.low {
+        background: var(--color-error-bg);
+        color: var(--color-error);
+        border-color: var(--color-error);
+      } /* < 50% */
+
+      /* Colored currency amounts */
+      .amt {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+      .amt.exp {
+        color: var(--color-error);
+      } /* expenses/debits */
+      .amt.inc {
+        color: var(--color-success);
+      } /* income/credits */
+
+      /* Suggestion bubbles: stack with spacing and wrap long content */
+      #suggestWrap {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+      #txPreview,
+      #suggestWrap,
+      .log {
+        overflow-wrap: anywhere;
+      }
+
+      /* Small screens: stack fields fully and keep modal width comfortable */
+      @media (max-width: 640px) {
+        .row > div {
+          min-width: 100%;
+        }
+        .dialog {
+          width: 95vw;
+        }
+      }
+
+      /* Optional: give inline buttons a small gap */
+      #runBtn + #cancelBtn {
+        margin-left: 0.5rem;
+      }
+
+      /* Pretty, structured logs */
+      .log-line {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.75rem 0.5rem;
+        border-bottom: 1px dashed var(--color-border-primary);
+        animation: fadeIn 0.2s ease;
+        align-items: stretch;
+      }
+      .log-line:last-child {
+        border-bottom: none;
+      }
+      .log-time {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        color: var(--color-text-tertiary);
+        min-width: auto;
+        text-align: left;
+        font-size: 0.8rem;
+        order: 3;
+        margin-top: 0.25rem;
+        opacity: 0.7;
+      }
+      .log-level {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.1rem 0.45rem;
+        border-radius: 9999px;
+        border: 1px solid transparent;
+        line-height: 1.2;
+        order: 1;
+        align-self: flex-start;
+        margin-bottom: 0.25rem;
+      }
+      .log-level.info {
+        background: var(--color-bg-tertiary);
+        color: var(--color-accent-primary);
+        border-color: var(--color-border-primary);
+      }
+      .log-level.ok {
+        background: var(--color-success-bg);
+        color: var(--color-success);
+        border-color: var(--color-success);
+      }
+      .log-level.warn {
+        background: var(--color-warning-bg);
+        color: var(--color-warning);
+        border-color: var(--color-warning);
+      }
+      .log-level.err {
+        background: var(--color-error-bg);
+        color: var(--color-error);
+        border-color: var(--color-error);
+      }
+      .log-msg {
+        color: var(--color-text-primary);
+        white-space: pre-wrap;
+        order: 2;
+        font-size: 0.95rem;
+        line-height: 1.4;
+        word-break: break-word;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(2px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Mobile-ready enhancements and small-screen overrides */
+      /* Grid actions for better wrapping across sizes */
+      .dialog .actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.5rem;
+        justify-content: stretch;
+      }
+
+      /* Ensure modal buttons have centered text */
+      .dialog .actions button {
+        text-align: center !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* Increase suggestion tap area */
+      .sugg {
+        min-height: 44px;
+      }
+
+      @media (max-width: 640px) {
+        /* Respect safe-area and tighten outer spacing on phones */
+        body {
+          margin: 0;
+          padding: 1rem;
+          padding-left: calc(1rem + env(safe-area-inset-left, 0));
+          padding-right: calc(1rem + env(safe-area-inset-right, 0));
+          padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0));
+        }
+
+        .card {
+          padding: 1rem;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Prevent iOS zoom and increase tap size */
+        input,
+        select {
+          font-size: 16px;
+          min-height: 44px;
+        }
+        button {
+          width: 100%;
+          min-height: 44px;
+        }
+
+        /* Modal fits viewport and scrolls cleanly */
+        .dialog {
+          width: 100vw;
+          max-width: 100vw;
+          max-height: 90vh;
+          overflow: auto;
+        }
+
+        /* Logs shouldn't dominate small screens */
+        .log {
+          max-height: 40vh;
+          font-size: 0.85rem;
+        }
+
+        /* Stack buttons on mobile */
+        .button-row {
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        #runBtn {
+          max-width: 100%;
+          flex: none;
+        }
+      }
+
+      /* Info box for description/privacy/transparency */
+      .info-box {
+        padding: 0.75rem 0.9rem;
+        background: var(--color-bg-tertiary);
+        border: 1px solid var(--color-border-primary);
+        color: var(--color-text-secondary);
+        border-radius: 0.5rem;
+        margin: 0.75rem 0 1rem;
+      }
+      .info-box a {
+        color: var(--color-accent-primary);
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .info-box a:hover {
+        text-decoration: underline;
+      }
+
+      /* Transaction card in modal */
+      .tx-card {
+        background: var(--color-bg-tertiary);
+        border: 1px solid var(--color-border-primary);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+
+      .tx-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--color-border-primary);
+      }
+
+      .tx-merchant {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: var(--color-text-primary);
+      }
+
+      .tx-date {
+        color: var(--color-text-tertiary);
+        font-size: 0.9rem;
+      }
+
+      .tx-details {
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      .tx-detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .tx-detail-label {
+        color: var(--color-text-secondary);
+        font-size: 0.9rem;
+        min-width: 80px;
+      }
+
+      .tx-detail-value {
+        color: var(--color-text-primary);
+        font-weight: 500;
+        text-align: right;
+      }
+
+      .tx-notes {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--color-border-primary);
+      }
+
+      .tx-notes-label {
+        color: var(--color-text-secondary);
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        font-weight: 500;
+      }
+
+      .tx-notes-text {
+        color: var(--color-text-primary);
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="brand">
+        <div class="brand-content">
+          <img
+            src="/lunchmoney.png"
+            alt="App logo"
+            onerror="this.onerror=null;this.src='/logo.png';"
+          />
+          <h1>lunchmoney-auto-categorize</h1>
+        </div>
+        <button
+          id="themeToggle"
+          class="theme-toggle"
+          title="Toggle theme"
+          aria-label="Toggle theme"
+        >
+          🖥️
+        </button>
+      </div>
+      <div class="info-box">
+        <p>
+          lunchmoney-auto-categorize delivers auto-categorization recommendations for your LunchMoney
+          transactions using top AI providers. All recommendations will be shown to you before
+          saving, so you can review and confirm them.
+        </p>
+        <p>
+          API Tokens stay securely in your browser LocalStorage. See the code on
+          <a
+            href="https://github.com/juftin/lunchmoney-auto-categorize"
+            target="_blank"
+            rel="noopener noreferrer"
+            >GitHub</a
+          >.
+        </p>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="lmToken">Lunch Money API token</label>
+          <input id="lmToken" type="password" placeholder="xxxxx..." autocomplete="off" />
+        </div>
+        <div>
+          <label for="openaiKey">Model API key</label>
+          <input
+            id="openaiKey"
+            type="password"
+            placeholder="sk-... / anth-... / AIza..."
+            autocomplete="off"
+          />
+        </div>
+      </div>
+
+      <!-- New: provider/model selection -->
+      <div class="row">
+        <div>
+          <label for="provider">Model provider</label>
+          <select id="provider"></select>
+        </div>
+        <div>
+          <label for="model">Model</label>
+          <select id="model"></select>
+          <input
+            id="customModel"
+            type="text"
+            placeholder="Enter custom model name..."
+            style="display: none; margin-top: 0.5rem"
+          />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="start">Start Date</label>
+          <input id="start" type="date" />
+        </div>
+        <div>
+          <label for="end">End Date</label>
+          <input id="end" type="date" />
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button id="runBtn">Load & Categorize</button>
+        <button id="cancelBtn" class="ghost" disabled>Cancel</button>
+      </div>
+      <div class="progress"><div id="bar" class="bar"></div></div>
+
+      <div class="log" id="log"></div>
+    </div>
+
+    <!-- Confirmation modal -->
+    <div id="modal" class="modal" aria-hidden="true">
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <h2 id="modalTitle">Auto-Categorize</h2>
+        <div id="txPreview" class="tx-card"></div>
+        <div id="suggestWrap" class="muted" style="margin-bottom: 0.5rem"></div>
+        <label for="catSelect">Category</label>
+        <select id="catSelect"></select>
+        <div class="actions">
+          <button id="cancelBtnModal" class="ghost">Cancel</button>
+          <button id="skipBtn" class="ghost">Skip</button>
+          <button id="saveBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
