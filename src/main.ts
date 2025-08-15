@@ -597,6 +597,16 @@ function openModal() {
 function closeModal() {
   $("#modal").classList.remove("show");
   $("#modal").setAttribute("aria-hidden", "true");
+  hideModalLoading(); // Clear loading state when modal closes
+}
+function showModalLoading(text = "Processing...") {
+  const loadingEl = $("#modalLoading");
+  const textEl = $("#loadingText");
+  textEl.textContent = text;
+  loadingEl.classList.add("show");
+}
+function hideModalLoading() {
+  $("#modalLoading").classList.remove("show");
 }
 function clearSelect(select: HTMLSelectElement) {
   while (select.firstChild) select.removeChild(select.firstChild);
@@ -694,21 +704,55 @@ function formatTransactionCard(t: LMTransaction): string {
   return html;
 }
 
+async function promptUserForCategoryWithLoading(
+  t: LMTransaction,
+  categories: LMCategory[],
+  provider: ProviderId,
+  model: string,
+  apiKey: string
+): Promise<number | null> {
+  // Set up modal content first
+  const txPreview = $("#txPreview");
+  const suggestWrap = $("#suggestWrap");
+  const select = $("#catSelect") as HTMLSelectElement;
+
+  // Show transaction information immediately
+  txPreview.innerHTML = formatTransactionCard(t);
+  suggestWrap.textContent = "";
+  populateCategorySelect(select, categories);
+
+  // Open modal with transaction info visible
+  openModal();
+
+  // Show loading and get suggestions
+  showModalLoading("");
+
+  try {
+    const prompt = buildPrompt(t, categories);
+    const rawSuggestions = await chooseCategoryOptions(provider, model, apiKey, prompt);
+    const suggestions = validateCategorySuggestions(rawSuggestions, categories);
+    hideModalLoading();
+
+    return await promptUserForCategory(t, categories, suggestions);
+  } catch (error) {
+    hideModalLoading();
+    throw error;
+  }
+}
+
 async function promptUserForCategory(
   t: LMTransaction,
   categories: LMCategory[],
   suggestions?: CategorySuggestion[]
 ): Promise<number | null> {
   const _modal = $("#modal");
-  const txPreview = $("#txPreview");
   const suggestWrap = $("#suggestWrap");
   const select = $("#catSelect") as HTMLSelectElement;
   const btnSave = $("#saveBtn") as HTMLButtonElement;
   const btnSkip = $("#skipBtn") as HTMLButtonElement;
   const btnCancelModal = $("#cancelBtnModal") as HTMLButtonElement;
 
-  txPreview.innerHTML = formatTransactionCard(t);
-
+  // Clear suggestions and populate with new ones
   suggestWrap.textContent = "";
   const plaidMeta = parsePlaidMetadata(t.plaid_metadata);
   const iconUrl = plaidMeta?.personal_finance_category_icon_url || "";
@@ -774,10 +818,13 @@ async function promptUserForCategory(
     }
   }
 
+  // Update select with the top suggestion preselected
   const preId = suggestions?.[0]?.name ? matchCategoryId(suggestions[0].name, categories) : null;
-  populateCategorySelect(select, categories, preId ?? undefined);
+  if (preId) {
+    select.value = String(preId);
+  }
 
-  openModal();
+  // Don't open modal here - it's already open from promptUserForCategoryWithLoading
   // Avoid popping up keyboards on touch devices/small screens
   const isCoarse =
     typeof window !== "undefined" &&
@@ -787,9 +834,14 @@ async function promptUserForCategory(
     setTimeout(() => select.focus(), 0);
   }
   return new Promise<number | null>(resolve => {
-    const onSave = () => {
+    const onSave = async () => {
       const val = select.value.trim();
-      resolve(val ? Number(val) : null);
+      if (val) {
+        showModalLoading("Saving category...");
+        resolve(Number(val));
+      } else {
+        resolve(null);
+      }
       cleanup();
     };
     const onSkip = () => {
@@ -816,7 +868,7 @@ async function promptUserForCategory(
       btnSkip.removeEventListener("click", onSkip);
       btnCancelModal.removeEventListener("click", onCancel);
       document.removeEventListener("keydown", onKey);
-      closeModal();
+      // Don't close modal here - let the main loop handle it after saving
     }
 
     btnSave.addEventListener("click", onSave);
@@ -824,7 +876,6 @@ async function promptUserForCategory(
     btnCancelModal.addEventListener("click", onCancel);
     document.addEventListener("keydown", onKey);
 
-    openModal();
     setTimeout(() => select.focus(), 0);
   });
 }
@@ -962,29 +1013,30 @@ async function run() {
           log("Cancelled by user.", "warn");
           break;
         }
-        const prompt = buildPrompt(t, categories);
-        const rawSuggestions = await chooseCategoryOptions(provider, model, apiKey, prompt);
-        const suggestions = validateCategorySuggestions(rawSuggestions, categories);
-        if (cancelled) {
-          log("Cancelled by user.", "warn");
-          break;
-        }
 
-        const chosenId = await promptUserForCategory(t, categories, suggestions);
+        // Open modal first, then show loading while getting suggestions
+        const chosenId = await promptUserForCategoryWithLoading(t, categories, provider, model, apiKey);
         if (cancelled) {
           log("Cancelled by user.", "warn");
+          closeModal(); // Ensure modal is closed when cancelled
           break;
         }
         if (!chosenId) {
           log(`Skipped: ${title}`, "warn");
+          closeModal(); // Close modal when transaction is skipped
           done++;
           setBar((done / txs.length) * 100);
           continue;
         }
 
-        await updateTransactionCategory(lmToken, t.id, chosenId);
-        const catName = categories.find(c => c.id === chosenId)?.name ?? String(chosenId);
-        log(`Updated ${title} -> ${catName}`, "ok");
+        try {
+          await updateTransactionCategory(lmToken, t.id, chosenId);
+          const catName = categories.find(c => c.id === chosenId)?.name ?? String(chosenId);
+          log(`Updated ${title} -> ${catName}`, "ok");
+        } finally {
+          hideModalLoading();
+          closeModal();
+        }
       } catch (e: unknown) {
         log(`Error on ${title}: ${e instanceof Error ? e.message : String(e)}`, "err");
       } finally {

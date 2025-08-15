@@ -765,6 +765,45 @@
         text-decoration: underline;
       }
 
+      /* Loading overlay */
+      .modal-loading {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.3);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.75rem;
+        z-index: 10;
+      }
+      .modal-loading.show {
+        display: flex;
+      }
+      .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--color-border-primary);
+        border-top: 3px solid var(--color-accent-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      .loading-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .loading-text {
+        margin-top: 0.75rem;
+        color: var(--color-text-primary);
+        font-weight: 600;
+        text-align: center;
+      }
+
       /* Transaction card in modal */
       .tx-card {
         background: var(--color-bg-tertiary);
@@ -932,6 +971,12 @@
     <!-- Confirmation modal -->
     <div id="modal" class="modal" aria-hidden="true">
       <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div id="modalLoading" class="modal-loading">
+          <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div id="loadingText" class="loading-text">Processing...</div>
+          </div>
+        </div>
         <h2 id="modalTitle">Auto-Categorize</h2>
         <div id="txPreview" class="tx-card"></div>
         <div id="suggestWrap" class="muted" style="margin-bottom: 0.5rem"></div>
