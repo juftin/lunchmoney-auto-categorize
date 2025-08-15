@@ -177,6 +177,18 @@ function esc(s: string | null | undefined): string {
     ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!
   );
 }
+// Constrain dynamic image URLs to safe schemes and image data URIs
+function safeImageSrc(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url, location.origin);
+    if (u.protocol === "https:") return u.toString();
+    if (u.protocol === "data:") return /^data:image\//i.test(url) ? url : null;
+    return null;
+  } catch {
+    return null;
+  }
+}
 function formatAmountHTML(amount: number, currency?: string | null): string {
   const code = currency || "USD";
   const fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: code });
@@ -661,7 +673,7 @@ function logTransactionDetails(t: LMTransaction): string {
   return extras ? `${base} • ${extras}` : base;
 }
 
-function formatTransactionCard(t: LMTransaction): string {
+function renderTransactionCard(container: HTMLElement, t: LMTransaction): void {
   const plaidMeta = parsePlaidMetadata(t.plaid_metadata);
   const merchant = t.payee || plaidMeta?.merchant_name || plaidMeta?.name || "Unknown";
   const pfcPrimary = plaidMeta?.personal_finance_category?.primary;
@@ -676,36 +688,67 @@ function formatTransactionCard(t: LMTransaction): string {
   const location = plaidMeta?.location;
   const _locationStr = location ? [location.city, location.region].filter(Boolean).join(", ") : "";
 
-  let html = `
-    <div class="tx-header">
-      <div class="tx-merchant">${esc(merchant)}</div>
-      <div class="tx-date">${esc(t.date)}</div>
-    </div>
-    <div class="tx-details">
-      <div class="tx-detail-row">
-        <span class="tx-detail-label">Amount:</span>
-        <span class="tx-detail-value">${formatAmountHTML(t.amount, currencyCode)}</span>
-      </div>`;
+  // Clear target
+  while (container.firstChild) container.removeChild(container.firstChild);
+
+  const header = document.createElement("div");
+  header.className = "tx-header";
+  const mEl = document.createElement("div");
+  mEl.className = "tx-merchant";
+  mEl.textContent = merchant;
+  const dEl = document.createElement("div");
+  dEl.className = "tx-date";
+  dEl.textContent = t.date;
+  header.appendChild(mEl);
+  header.appendChild(dEl);
+  container.appendChild(header);
+
+  const details = document.createElement("div");
+  details.className = "tx-details";
+
+  const rowAmt = document.createElement("div");
+  rowAmt.className = "tx-detail-row";
+  const lAmt = document.createElement("span");
+  lAmt.className = "tx-detail-label";
+  lAmt.textContent = "Amount:";
+  const vAmt = document.createElement("span");
+  vAmt.className = "tx-detail-value";
+  // Only static markup + number formatting
+  vAmt.innerHTML = formatAmountHTML(t.amount, currencyCode);
+  rowAmt.appendChild(lAmt);
+  rowAmt.appendChild(vAmt);
+  details.appendChild(rowAmt);
 
   if (plaidCategory) {
-    html += `
-      <div class="tx-detail-row">
-        <span class="tx-detail-label">Plaid Category:</span>
-        <span class="tx-detail-value">${esc(plaidCategory)}</span>
-      </div>`;
+    const rowPlaid = document.createElement("div");
+    rowPlaid.className = "tx-detail-row";
+    const lPlaid = document.createElement("span");
+    lPlaid.className = "tx-detail-label";
+    lPlaid.textContent = "Plaid Category:";
+    const vPlaid = document.createElement("span");
+    vPlaid.className = "tx-detail-value";
+    vPlaid.textContent = plaidCategory;
+    rowPlaid.appendChild(lPlaid);
+    rowPlaid.appendChild(vPlaid);
+    details.appendChild(rowPlaid);
   }
 
   if (t.notes && t.notes.trim()) {
-    html += `
-      <div class="tx-detail-row">
-        <span class="tx-detail-label">Notes:</span>
-        <span class="tx-detail-value" style="font-style: italic;">${esc(t.notes)}</span>
-      </div>`;
+    const rowNotes = document.createElement("div");
+    rowNotes.className = "tx-detail-row";
+    const lNotes = document.createElement("span");
+    lNotes.className = "tx-detail-label";
+    lNotes.textContent = "Notes:";
+    const vNotes = document.createElement("span");
+    vNotes.className = "tx-detail-value";
+    vNotes.style.fontStyle = "italic";
+    vNotes.textContent = t.notes;
+    rowNotes.appendChild(lNotes);
+    rowNotes.appendChild(vNotes);
+    details.appendChild(rowNotes);
   }
 
-  html += `</div>`;
-
-  return html;
+  container.appendChild(details);
 }
 
 async function promptUserForCategoryWithLoading(
@@ -721,8 +764,8 @@ async function promptUserForCategoryWithLoading(
   const suggestWrap = $("#suggestWrap");
   const select = $("#catSelect") as HTMLSelectElement;
 
-  // Show transaction information immediately
-  txPreview.innerHTML = formatTransactionCard(t);
+  // Show transaction information immediately (no template injection)
+  renderTransactionCard(txPreview, t);
   suggestWrap.textContent = "";
   populateCategorySelect(select, categories);
 
@@ -779,7 +822,8 @@ async function promptUserForCategory(
       if (iconUrl) {
         const img = document.createElement("img");
         img.className = "suggIcon";
-        img.src = iconUrl;
+        const src = safeImageSrc(iconUrl);
+        if (src) img.src = src;
         img.alt = "PFC icon";
         row.appendChild(img);
       }
@@ -1079,6 +1123,14 @@ async function run() {
 }
 
 function main() {
+  // Attach safe fallback for the brand logo without inline handlers
+  const logo = document.getElementById("brandLogo") as HTMLImageElement | null;
+  if (logo) {
+    logo.addEventListener("error", () => {
+      logo.src = "/logo.png";
+    });
+  }
+
   setDefaultsFromLocalStorage();
   $("#runBtn").addEventListener("click", async e => {
     const btn = e.currentTarget as HTMLButtonElement;

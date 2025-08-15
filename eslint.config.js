@@ -23,9 +23,12 @@ export default [
         HTMLButtonElement: "readonly",
         HTMLSelectElement: "readonly",
         HTMLInputElement: "readonly",
+        HTMLImageElement: "readonly",
         URLSearchParams: "readonly",
         RequestInit: "readonly",
         KeyboardEvent: "readonly",
+        URL: "readonly",
+        location: "readonly",
       },
     },
     plugins: {
@@ -33,6 +36,12 @@ export default [
     },
     rules: {
       ...tseslint.configs.recommended.rules,
+      "no-implied-eval": "error",
+      "no-new-func": "error",
+      "no-restricted-properties": [
+        "error",
+        { object: "document", property: "write", message: "Avoid document.write for security." },
+      ],
       "@typescript-eslint/no-unused-vars": [
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },

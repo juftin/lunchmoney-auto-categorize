@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self' https: wss:; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
     <title>lunchmoney-auto-categorize</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" />
@@ -885,11 +890,7 @@
     <div class="card">
       <div class="brand">
         <div class="brand-content">
-          <img
-            src="/lunchmoney.png"
-            alt="App logo"
-            onerror="this.onerror=null;this.src='/logo.png';"
-          />
+          <img id="brandLogo" src="/lunchmoney.png" alt="App logo" />
           <h1>lunchmoney-auto-categorize</h1>
         </div>
         <button
