@@ -115,6 +115,39 @@ const PROVIDERS: { id: ProviderId; name: string; models: ModelConfig[]; keyHint:
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 
+// SVG icons for password toggle
+const EYE_OPEN_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+  <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+</svg>`;
+
+const EYE_CLOSED_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+  <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/>
+</svg>`;
+
+// Password toggle functionality
+function setupPasswordToggles() {
+  const toggleButtons = document.querySelectorAll(".password-toggle");
+
+  toggleButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      const targetId = button.getAttribute("data-target");
+      const input = document.getElementById(targetId!) as HTMLInputElement;
+
+      if (input.type === "password") {
+        // Show password
+        input.type = "text";
+        button.innerHTML = EYE_CLOSED_SVG;
+        button.setAttribute("aria-label", "Hide password");
+      } else {
+        // Hide password
+        input.type = "password";
+        button.innerHTML = EYE_OPEN_SVG;
+        button.setAttribute("aria-label", "Show password");
+      }
+    });
+  });
+}
+
 // Helper function to parse Plaid metadata
 function parsePlaidMetadata(metadata: string | object | null | undefined): any {
   if (!metadata) return null;
@@ -128,6 +161,7 @@ function parsePlaidMetadata(metadata: string | object | null | undefined): any {
   }
   return metadata as any;
 }
+
 const log = (msg: string, cls: "ok" | "warn" | "err" | "" = "") => {
   const el = $("#log");
   // Ensure assistive tech picks up new lines
@@ -177,6 +211,7 @@ function esc(s: string | null | undefined): string {
     ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!
   );
 }
+
 // Constrain dynamic image URLs to safe schemes and image data URIs
 function safeImageSrc(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -189,12 +224,14 @@ function safeImageSrc(url: string | null | undefined): string | null {
     return null;
   }
 }
+
 function formatAmountHTML(amount: number, currency?: string | null): string {
   const code = currency || "USD";
   const fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: code });
   const cls = amount < 0 ? "inc" : "exp"; // negative -> income/credit (green), else expense/debit (red)
   return `<span class="amt ${cls}">${fmt.format(amount)}</span>`;
 }
+
 // New: plain-text currency formatter for logs
 function formatAmountText(amount: number, currency?: string | null): string {
   const code = currency || "USD";
@@ -203,12 +240,15 @@ function formatAmountText(amount: number, currency?: string | null): string {
 
 // Apply theme to <html> via data-theme; "system" keeps CSS media query in control
 type ThemeMode = "system" | "light" | "dark";
+
 function applyTheme(theme: ThemeMode) {
   document.documentElement.setAttribute("data-theme", theme);
 }
+
 function nextTheme(t: ThemeMode): ThemeMode {
   return t === "system" ? "light" : t === "light" ? "dark" : "system";
 }
+
 function updateThemeToggleUI(btn: HTMLButtonElement, theme: ThemeMode) {
   const icon = theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥️";
   const title =
@@ -229,6 +269,7 @@ function populateProviderSelect() {
     sel.appendChild(opt);
   }
 }
+
 function populateModelSelect(providerId: ProviderId, preselect?: string) {
   const sel = $("#model") as HTMLSelectElement;
   sel.innerHTML = "";
@@ -263,6 +304,7 @@ function populateModelSelect(providerId: ProviderId, preselect?: string) {
     sel.selectedIndex = 0;
   }
 }
+
 function updateKeyPlaceholder(providerId: ProviderId) {
   const input = $("#openaiKey") as HTMLInputElement;
   const p = PROVIDERS.find(x => x.id === providerId) ?? PROVIDERS[0];
@@ -516,9 +558,21 @@ async function chooseCategoryOptions(
   if (provider === "openai") {
     llm = new ChatOpenAI({ apiKey, model, temperature });
   } else if (provider === "anthropic") {
-    llm = new ChatAnthropic({ apiKey, model, temperature });
+    llm = new ChatAnthropic({
+      apiKey: apiKey,
+      modelName: model,
+      temperature: temperature,
+      clientOptions: {
+        dangerouslyAllowBrowser: true,
+      },
+    });
   } else {
     llm = new ChatGoogleGenerativeAI({ apiKey, model, temperature });
+  }
+
+  // Check if cancelled before making API call
+  if (cancelled) {
+    throw new Error("Operation cancelled");
   }
 
   const result = await llm.invoke([
@@ -528,6 +582,11 @@ async function chooseCategoryOptions(
     },
     { role: "user", content: transactionPrompt },
   ]);
+
+  // Check if cancelled after API call
+  if (cancelled) {
+    throw new Error("Operation cancelled");
+  }
   // log the JSON result
   const content = Array.isArray((result as { content?: unknown }).content)
     ? (result as { content: { text?: string }[] }).content
@@ -610,23 +669,31 @@ function openModal() {
   $("#modal").classList.add("show");
   $("#modal").setAttribute("aria-hidden", "false");
 }
+
 function closeModal() {
   $("#modal").classList.remove("show");
   $("#modal").setAttribute("aria-hidden", "true");
   hideModalLoading(); // Clear loading state when modal closes
 }
+
 function showModalLoading(text = "Processing...") {
   const loadingEl = $("#modalLoading");
   const textEl = $("#loadingText");
   textEl.textContent = text;
+  textEl.style.color = ""; // Reset color
+  // Hide text element if empty
+  textEl.style.display = text ? "block" : "none";
   loadingEl.classList.add("show");
 }
+
 function hideModalLoading() {
   $("#modalLoading").classList.remove("show");
 }
+
 function clearSelect(select: HTMLSelectElement) {
   while (select.firstChild) select.removeChild(select.firstChild);
 }
+
 function populateCategorySelect(
   select: HTMLSelectElement,
   categories: LMCategory[],
@@ -763,6 +830,15 @@ async function promptUserForCategoryWithLoading(
   const txPreview = $("#txPreview");
   const suggestWrap = $("#suggestWrap");
   const select = $("#catSelect") as HTMLSelectElement;
+  const modalTitle = $("#modalTitle");
+
+  // Reset modal title to default
+  modalTitle.textContent = "Auto-Categorize";
+  modalTitle.style.color = "";
+
+  // Reset Save button state (in case it was disabled from previous error)
+  const btnSave = $("#saveBtn") as HTMLButtonElement;
+  btnSave.disabled = false;
 
   // Show transaction information immediately (no template injection)
   renderTransactionCard(txPreview, t);
@@ -784,13 +860,94 @@ async function promptUserForCategoryWithLoading(
       systemPrompt,
       transactionPrompt
     );
+
+    // Check if cancelled during API call
+    if (cancelled) {
+      hideModalLoading();
+      closeModal();
+      return null;
+    }
+
     const suggestions = validateCategorySuggestions(rawSuggestions, categories);
     hideModalLoading();
 
     return await promptUserForCategory(t, categories, suggestions);
   } catch (error) {
+    // Hide loading overlay and show error in modal
     hideModalLoading();
-    throw error;
+
+    const errorMsg = error instanceof Error ? error.message : String(error);
+
+    // Update modal title to show error
+    const modalTitle = $("#modalTitle");
+    modalTitle.textContent = "❌ AI Error";
+    modalTitle.style.color = "var(--color-error)";
+
+    // Replace transaction preview with error message using secure DOM manipulation
+    const txPreview = $("#txPreview");
+
+    // Clear existing content
+    while (txPreview.firstChild) {
+      txPreview.removeChild(txPreview.firstChild);
+    }
+
+    // Create error container
+    const errorContainer = document.createElement("div");
+    errorContainer.style.cssText = `
+      background: var(--color-error-bg);
+      border: 2px solid var(--color-error);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      text-align: center;
+      color: var(--color-error);
+    `;
+
+    // Create error icon
+    const errorIcon = document.createElement("div");
+    errorIcon.style.cssText = "font-size: 3rem; margin-bottom: 1rem;";
+    errorIcon.textContent = "❌";
+    errorContainer.appendChild(errorIcon);
+
+    // Create error title
+    const errorTitle = document.createElement("h3");
+    errorTitle.style.cssText = "margin: 0 0 1rem 0; color: var(--color-error); font-size: 1.2rem;";
+    errorTitle.textContent = "Failed to get AI suggestions";
+    errorContainer.appendChild(errorTitle);
+
+    // Create error message box
+    const errorMsgBox = document.createElement("div");
+    errorMsgBox.style.cssText = `
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-error);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin: 1rem 0;
+      font-family: ui-monospace, monospace;
+      font-size: 0.9rem;
+      word-break: break-word;
+    `;
+    errorMsgBox.textContent = errorMsg; // Safe text content, no HTML injection
+    errorContainer.appendChild(errorMsgBox);
+
+    txPreview.appendChild(errorContainer);
+
+    // Clear suggestions area
+    const suggestWrap = $("#suggestWrap");
+    suggestWrap.textContent = "";
+
+    // Clear category select
+    const select = $("#catSelect") as HTMLSelectElement;
+    populateCategorySelect(select, categories);
+
+    // Disable Save button since there's no valid category to save
+    const btnSave = $("#saveBtn") as HTMLButtonElement;
+    btnSave.disabled = true;
+
+    // Log the error as well
+    log(`Error getting AI suggestions: ${errorMsg}`, "err");
+
+    // Wait for user to interact with modal (pass empty suggestions to promptUserForCategory)
+    return await promptUserForCategory(t, categories, []);
   }
 }
 
@@ -918,6 +1075,7 @@ async function promptUserForCategory(
         onSave();
       }
     };
+
     function cleanup() {
       btnSave.removeEventListener("click", onSave);
       btnSkip.removeEventListener("click", onSkip);
@@ -1132,6 +1290,7 @@ function main() {
   }
 
   setDefaultsFromLocalStorage();
+  setupPasswordToggles();
   $("#runBtn").addEventListener("click", async e => {
     const btn = e.currentTarget as HTMLButtonElement;
     btn.disabled = true;
