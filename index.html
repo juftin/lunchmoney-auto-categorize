@@ -788,8 +788,12 @@
         animation: spin 1s linear infinite;
       }
       @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
       }
       .loading-content {
         display: flex;
@@ -899,9 +903,9 @@
       </div>
       <div class="info-box">
         <p>
-          lunchmoney-auto-categorize delivers auto-categorization recommendations for your LunchMoney
-          transactions using top AI providers. All recommendations will be shown to you before
-          saving, so you can review and confirm them.
+          lunchmoney-auto-categorize delivers auto-categorization recommendations for your
+          LunchMoney transactions using top AI providers. All recommendations will be shown to you
+          before saving, so you can review and confirm them.
         </p>
         <p>
           API Tokens stay securely in your browser LocalStorage. See the code on

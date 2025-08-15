@@ -393,7 +393,7 @@ async function updateTransactionCategory(
 }
 
 // --- Prompt building ---
-function buildPrompt(t: LMTransaction, categories: LMCategory[]): string {
+function buildSystemPrompt(categories: LMCategory[]): string {
   const categoriesWithIds = categories.map(c => {
     let categoryInfo = `"${c.name}" (ID: ${c.id})`;
     if (c.description && c.description.trim()) {
@@ -401,35 +401,6 @@ function buildPrompt(t: LMTransaction, categories: LMCategory[]): string {
     }
     return categoryInfo;
   });
-  const plaidMeta = parsePlaidMetadata(t.plaid_metadata);
-
-  const plaidCategory = plaidMeta?.category?.join(", ") || "Unknown";
-  const loc = plaidMeta?.location;
-  const location = [loc?.city, loc?.region].filter(Boolean).join(", ") || "Unknown";
-  const merchant = plaidMeta?.merchant_name || plaidMeta?.name || t.payee || "Unknown";
-  const pfcPrimary = plaidMeta?.personal_finance_category?.primary;
-  const pfcDetailed = plaidMeta?.personal_finance_category?.detailed;
-  const _pfc =
-    pfcPrimary || pfcDetailed
-      ? `${pfcPrimary ?? ""}${pfcPrimary && pfcDetailed ? " > " : ""}${pfcDetailed ?? ""}`
-      : "Unknown";
-  const _channel = plaidMeta?.payment_channel || "Unknown";
-  const counterparties = plaidMeta?.counterparties || [];
-  const _primaryCounterparty =
-    counterparties.find(
-      (cp: { confidence_level: string }) => cp.confidence_level === "VERY_HIGH"
-    ) || counterparties[0];
-  const allCounterparties = counterparties
-    .map(
-      (cp: { name: string; type: string; confidence_level: string }) =>
-        `${cp.name} (${cp.type}, ${cp.confidence_level})`
-    )
-    .join("; ");
-  const transactionType = plaidMeta?.transaction_type || "";
-  const pfcConfidence = plaidMeta?.personal_finance_category?.confidence_level || "";
-  const catId = plaidMeta?.category_id || "";
-  const pending =
-    plaidMeta?.pending === true ? "true" : plaidMeta?.pending === false ? "false" : "unknown";
 
   return [
     "You categorize personal finance transactions.",
@@ -454,7 +425,47 @@ function buildPrompt(t: LMTransaction, categories: LMCategory[]): string {
     "- Confidence should be 0.0-1.0 (not percentages)",
     "- Keep justifications to one sentence",
     "",
-    "Transaction:",
+    "AVAILABLE CATEGORIES (you must choose from this exact list):",
+    "Note: Some categories include descriptions to help you understand their purpose.",
+    "",
+    categoriesWithIds.join("\n"),
+    "",
+    "Remember: Use the EXACT category name as shown above. Do not modify, abbreviate, or create variations.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildTransactionPrompt(t: LMTransaction): string {
+  const plaidMeta = parsePlaidMetadata(t.plaid_metadata);
+
+  const plaidCategory = plaidMeta?.category?.join(", ") || "Unknown";
+  const loc = plaidMeta?.location;
+  const location = [loc?.city, loc?.region].filter(Boolean).join(", ") || "Unknown";
+  const merchant = plaidMeta?.merchant_name || plaidMeta?.name || t.payee || "Unknown";
+  const pfcPrimary = plaidMeta?.personal_finance_category?.primary;
+  const pfcDetailed = plaidMeta?.personal_finance_category?.detailed;
+  const _pfc =
+    pfcPrimary || pfcDetailed
+      ? `${pfcPrimary ?? ""}${pfcPrimary && pfcDetailed ? " > " : ""}${pfcDetailed ?? ""}`
+      : "Unknown";
+  const _channel = plaidMeta?.payment_channel || "Unknown";
+  const counterparties = plaidMeta?.counterparties || [];
+  const allCounterparties = counterparties
+    .map(
+      (cp: { name: string; type: string; confidence_level: string }) =>
+        `${cp.name} (${cp.type}, ${cp.confidence_level})`
+    )
+    .join("; ");
+  const transactionType = plaidMeta?.transaction_type || "";
+  const pfcConfidence = plaidMeta?.personal_finance_category?.confidence_level || "";
+  const catId = plaidMeta?.category_id || "";
+  const pending =
+    plaidMeta?.pending === true ? "true" : plaidMeta?.pending === false ? "false" : "unknown";
+
+  return [
+    "Please categorize this transaction:",
+    "",
     `- Payee: ${t.payee ?? "Unknown"}`,
     `- Merchant: ${merchant}`,
     `- Amount: ${t.amount}`,
@@ -470,13 +481,6 @@ function buildPrompt(t: LMTransaction, categories: LMCategory[]): string {
       : undefined,
     `- Location: ${location}`,
     `- Pending: ${pending}`,
-    "",
-    "AVAILABLE CATEGORIES (you must choose from this exact list):",
-    "Note: Some categories include descriptions to help you understand their purpose.",
-    "",
-    categoriesWithIds.join("\n"),
-    "",
-    "Remember: Use the EXACT category name as shown above. Do not modify, abbreviate, or create variations.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -487,7 +491,8 @@ async function chooseCategoryOptions(
   provider: ProviderId,
   model: string,
   apiKey: string,
-  prompt: string
+  systemPrompt: string,
+  transactionPrompt: string
 ): Promise<CategorySuggestion[]> {
   let llm:
     | InstanceType<typeof ChatOpenAI>
@@ -507,12 +512,11 @@ async function chooseCategoryOptions(
   const result = await llm.invoke([
     {
       role: "system",
-      content:
-        "You are a precise classification assistant for budgeting categories. Output JSON only.",
+      content: systemPrompt,
     },
-    { role: "user", content: prompt },
+    { role: "user", content: transactionPrompt },
   ]);
-
+  // log the JSON result
   const content = Array.isArray((result as { content?: unknown }).content)
     ? (result as { content: { text?: string }[] }).content
         .map((c: { text?: string }) => (typeof c?.text === "string" ? c.text : String(c ?? "")))
@@ -709,7 +713,8 @@ async function promptUserForCategoryWithLoading(
   categories: LMCategory[],
   provider: ProviderId,
   model: string,
-  apiKey: string
+  apiKey: string,
+  systemPrompt: string
 ): Promise<number | null> {
   // Set up modal content first
   const txPreview = $("#txPreview");
@@ -728,8 +733,14 @@ async function promptUserForCategoryWithLoading(
   showModalLoading("");
 
   try {
-    const prompt = buildPrompt(t, categories);
-    const rawSuggestions = await chooseCategoryOptions(provider, model, apiKey, prompt);
+    const transactionPrompt = buildTransactionPrompt(t);
+    const rawSuggestions = await chooseCategoryOptions(
+      provider,
+      model,
+      apiKey,
+      systemPrompt,
+      transactionPrompt
+    );
     const suggestions = validateCategorySuggestions(rawSuggestions, categories);
     hideModalLoading();
 
@@ -998,6 +1009,8 @@ async function run() {
     }
     log(`Found ${txs.length} uncategorized transactions.`);
 
+    // Build system prompt once for all transactions
+    const systemPrompt = buildSystemPrompt(categories);
     let done = 0;
     for (const t of txs) {
       if (cancelled) {
@@ -1015,7 +1028,14 @@ async function run() {
         }
 
         // Open modal first, then show loading while getting suggestions
-        const chosenId = await promptUserForCategoryWithLoading(t, categories, provider, model, apiKey);
+        const chosenId = await promptUserForCategoryWithLoading(
+          t,
+          categories,
+          provider,
+          model,
+          apiKey,
+          systemPrompt
+        );
         if (cancelled) {
           log("Cancelled by user.", "warn");
           closeModal(); // Ensure modal is closed when cancelled
